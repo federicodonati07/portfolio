@@ -26,8 +26,8 @@ export default function SignIn() {
       })
       if (error) throw error
       router.push('/')
-    } catch (error: any) {
-      setError(error.message)
+    } catch (error: Error | unknown) {
+      setError(error instanceof Error ? error.message : 'An error occurred')
     } finally {
       setLoading(false)
     }
@@ -39,8 +39,8 @@ export default function SignIn() {
         provider: 'github',
       })
       if (error) throw error
-    } catch (error: any) {
-      setError(error.message)
+    } catch (error: Error | unknown) {
+      setError(error instanceof Error ? error.message : 'An error occurred')
     }
   }
 

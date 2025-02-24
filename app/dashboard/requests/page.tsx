@@ -8,6 +8,21 @@ import { FiSend, FiArrowLeft } from 'react-icons/fi'
 import Link from 'next/link'
 import { format } from 'date-fns'
 
+interface Request {
+  id: number
+  created_at: string
+  user_id: string
+  status: 'pending' | 'answered' | 'closed'
+  plan: string
+  text: string
+  answer?: string
+  tempAnswer?: string
+  profiles?: {
+    email: string
+    full_name: string
+  }
+}
+
 const PLANS = [
   {
     id: 'info',
@@ -32,7 +47,7 @@ const PLANS = [
 ]
 
 export default function AdminRequests() {
-  const [requests, setRequests] = useState([])
+  const [requests, setRequests] = useState<Request[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all')
   const [planFilter, setPlanFilter] = useState('all')
@@ -60,7 +75,7 @@ export default function AdminRequests() {
   const fetchRequests = async () => {
     try {
       console.log('Fetching requests as admin...')
-      const { data: { session } } = await supabase.auth.getSession()
+      const { data: session } = await supabase.auth.getSession()
       if (!session) {
         router.push('/signin')
         return
@@ -108,7 +123,7 @@ export default function AdminRequests() {
     } catch (error) {
       console.error('Error in fetchRequests:', error)
       setRequests([])
-      if (error.message?.includes('JWT')) {
+      if (error instanceof Error && error.message.includes('JWT')) {
         router.push('/signin')
       }
     } finally {
@@ -133,9 +148,10 @@ export default function AdminRequests() {
 
       // Invia email all'utente
       const request = requests.find(r => r.id === id)
+      if (!request || !request.profiles?.email) return
       await supabase.functions.invoke('sendUserNotification', {
         body: {
-          userEmail: request.profiles?.email,
+          userEmail: request.profiles.email,
           answer: signedAnswer
         }
       })
@@ -338,7 +354,7 @@ export default function AdminRequests() {
                       }}
                     />
                     <button
-                      onClick={() => handleAnswer(request.id, request.tempAnswer)}
+                      onClick={() => request.tempAnswer && handleAnswer(request.id, request.tempAnswer)}
                       disabled={!request.tempAnswer?.trim()}
                       className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 rounded-xl 
                                 bg-gradient-to-r from-purple-600 to-blue-600 text-white

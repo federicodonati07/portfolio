@@ -7,6 +7,7 @@ import { FiGithub, FiMail, FiLogOut, FiPieChart } from 'react-icons/fi'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Session } from '@supabase/supabase-js'
+import Image from 'next/image'
 
 export function ProfileMenu() {
   const [session, setSession] = useState<Session | null>(null)
@@ -59,7 +60,7 @@ export function ProfileMenu() {
         .select('id')
         .eq('status', 'pending')
       
-      setHasNewRequests(pendingRequests && pendingRequests.length > 0)
+      setHasNewRequests(!!(pendingRequests && pendingRequests.length > 0))
     } else {
       // Controlla nuove risposte per l'utente
       const { data: answeredRequests } = await supabase
@@ -68,7 +69,7 @@ export function ProfileMenu() {
         .eq('user_id', session.user.id)
         .eq('status', 'answered')
       
-      setHasNewAnswers(answeredRequests && answeredRequests.length > 0)
+      setHasNewAnswers(!!(answeredRequests && answeredRequests.length > 0))
     }
   }
 
@@ -124,6 +125,7 @@ export function ProfileMenu() {
   const userEmail = session.user.email
   const userName = session.user.user_metadata.name || userEmail?.split('@')[0] || 'User'
   const avatarUrl = session.user.user_metadata.avatar_url
+
   const isAdmin = userEmail && userEmail === 'federico.donati.work@gmail.com'
 
   return (
@@ -133,6 +135,11 @@ export function ProfileMenu() {
       onMouseEnter={() => !isMobile && setIsOpen(true)}
       onMouseLeave={() => !isMobile && setIsOpen(false)}
     >
+      {isAdmin && (
+        <Link href="/admin">
+          <motion.button className="...">Admin Dashboard</motion.button>
+        </Link>
+      )}
       <motion.button
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
@@ -160,15 +167,16 @@ export function ProfileMenu() {
             className="absolute right-0 mt-4 w-72 rounded-xl 
                       bg-white/40 dark:bg-gray-800/40 
                       backdrop-blur-md border border-purple-500/30
-                      mt-6
                       shadow-[0_0_30px_rgba(139,92,246,0.1)] z-50"
           >
             <div className="p-6 backdrop-blur-md bg-white/30 dark:bg-gray-800/30 rounded-xl">
               <div className="flex items-center gap-3 mb-4">
                 {avatarUrl ? (
-                  <img 
+                  <Image 
                     src={avatarUrl} 
                     alt={userName}
+                    width={48}
+                    height={48}
                     className="w-12 h-12 rounded-full border-2 border-purple-500/30 flex-shrink-0
                              shadow-[0_0_15px_rgba(139,92,246,0.2)]"
                   />

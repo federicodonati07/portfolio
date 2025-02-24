@@ -110,7 +110,7 @@ export function ContactSection() {
         {!session ? (
           <div className="text-center">
             <p className="text-xl text-gray-600 dark:text-gray-300 mb-8">
-              Effettua l'accesso per richiedere un preventivo
+              Effettua l&apos;accesso per richiedere un preventivo
             </p>
             <Button
               size="lg"

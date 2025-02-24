@@ -80,7 +80,7 @@ export default function Dashboard() {
         console.log('Fetched users:', users)
         const githubUsers = users.filter(user => 
           user.app_metadata?.provider === 'github' || 
-          user.identities?.some(id => id.provider === 'github')
+          user.identities?.some((id: { provider: string }) => id.provider === 'github')
         ).length
         const emailUsers = users.length - githubUsers
 
@@ -223,7 +223,7 @@ export default function Dashboard() {
             titleFont: {
               size: 14,
               family: "'Inter', sans-serif",
-              weight: '600'
+              weight: 'bold'
             },
             boxPadding: 6
           }
@@ -244,7 +244,8 @@ export default function Dashboard() {
             beginAtZero: true,
             grid: {
               color: 'rgba(147, 51, 234, 0.1)',
-              drawBorder: false
+              display: true,
+              drawOnChartArea: true
             },
             ticks: {
               stepSize: 1,

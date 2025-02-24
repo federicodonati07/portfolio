@@ -3,8 +3,7 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
-import { FiGithub, FiMail, FiLock, FiUser, FiHome } from 'react-icons/fi'
-import { useRouter } from 'next/navigation'
+import { FiMail, FiLock, FiUser, FiHome } from 'react-icons/fi'
 import Link from 'next/link'
 import { PasswordStrengthMeter } from '@/components/PasswordStrengthMeter'
 
@@ -23,7 +22,6 @@ export default function SignUp() {
   const [registrationSuccess, setRegistrationSuccess] = useState(false)
   const [resendTimer, setResendTimer] = useState(60)
   const [canResend, setCanResend] = useState(false)
-  const router = useRouter()
 
   useEffect(() => {
     let interval: NodeJS.Timeout
@@ -96,10 +94,10 @@ export default function SignUp() {
       })
       if (error) throw error
       setRegistrationSuccess(true)
-    } catch (error: any) {
+    } catch (error: unknown) {
       setErrors(prev => ({
         ...prev,
-        email: error.message
+        email: error instanceof Error ? error.message : 'An error occurred'
       }))
     } finally {
       setLoading(false)
@@ -116,8 +114,8 @@ export default function SignUp() {
       
       setResendTimer(60)
       setCanResend(false)
-    } catch (error: any) {
-      console.error('Error resending email:', error)
+    } catch (error: unknown) {
+      console.error('Error resending email:', error instanceof Error ? error.message : 'Unknown error')
     }
   }
 
