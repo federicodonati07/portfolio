@@ -1,0 +1,257 @@
+'use client'
+
+import { useState, useEffect, useRef } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { supabase } from '@/lib/supabase'
+import { FiGithub, FiMail, FiLogOut, FiPieChart } from 'react-icons/fi'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { Session } from '@supabase/supabase-js'
+
+export function ProfileMenu() {
+  const [session, setSession] = useState<Session | null>(null)
+  const [isOpen, setIsOpen] = useState(false)
+  const [isMobile, setIsMobile] = useState(true)
+  const [hasNewRequests, setHasNewRequests] = useState(false)
+  const [hasNewAnswers, setHasNewAnswers] = useState(false)
+  const router = useRouter()
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  // Controlla se è mobile
+  useEffect(() => {
+    const checkIsMobile = () => {
+      setIsMobile(window.innerWidth < 768)
+    }
+    checkIsMobile()
+    window.addEventListener('resize', checkIsMobile)
+    return () => window.removeEventListener('resize', checkIsMobile)
+  }, [])
+
+  // Gestione autenticazione
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session)
+      if (session) {
+        checkNotifications(session)
+      }
+    })
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session)
+      if (session) {
+        checkNotifications(session)
+      }
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
+
+  // Controlla le notifiche
+  const checkNotifications = async (session: Session) => {
+    const isAdmin = session.user.email === 'federico.donati.work@gmail.com'
+
+    if (isAdmin) {
+      // Controlla nuove richieste per l'admin
+      const { data: pendingRequests } = await supabase
+        .from('request')
+        .select('id')
+        .eq('status', 'pending')
+      
+      setHasNewRequests(pendingRequests && pendingRequests.length > 0)
+    } else {
+      // Controlla nuove risposte per l'utente
+      const { data: answeredRequests } = await supabase
+        .from('request')
+        .select('id')
+        .eq('user_id', session.user.id)
+        .eq('status', 'answered')
+      
+      setHasNewAnswers(answeredRequests && answeredRequests.length > 0)
+    }
+  }
+
+  // Imposta un listener per le modifiche alla tabella request
+  useEffect(() => {
+    if (!session) return
+
+    const channel = supabase
+      .channel('request_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'request'
+        },
+        () => {
+          checkNotifications(session)
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [session])
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+    router.push('/signin')
+  }
+
+  if (!session) {
+    return (
+      <Link href="/signin">
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          className="relative px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 
+                     text-white font-medium hover:shadow-lg hover:shadow-purple-500/30 
+                     transition-all duration-300 group overflow-hidden"
+        >
+          <span className="relative z-10">Sign In</span>
+          <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-600 
+                         translate-y-[101%] group-hover:translate-y-0 transition-transform duration-500" />
+        </motion.button>
+      </Link>
+    )
+  }
+
+  const isGithubUser = session.user.app_metadata?.provider === 'github' || 
+                       session.user.identities?.some(identity => identity.provider === 'github')
+  const userEmail = session.user.email
+  const userName = session.user.user_metadata.name || userEmail?.split('@')[0] || 'User'
+  const avatarUrl = session.user.user_metadata.avatar_url
+  const isAdmin = userEmail && userEmail === 'federico.donati.work@gmail.com'
+
+  return (
+    <div 
+      className="relative" 
+      ref={menuRef}
+      onMouseEnter={() => !isMobile && setIsOpen(true)}
+      onMouseLeave={() => !isMobile && setIsOpen(false)}
+    >
+      <motion.button
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+        onClick={() => isMobile && setIsOpen(!isOpen)}
+        className="relative p-2 rounded-xl bg-white/5 dark:bg-gray-800/5 
+                   border border-purple-500/20 hover:border-purple-500/40
+                   transition-all duration-300
+                   shadow-[0_0_10px_rgba(139,92,246,0.1)]
+                   hover:shadow-[0_0_15px_rgba(139,92,246,0.2)]"
+      >
+        {isGithubUser ? (
+          <FiGithub className="text-xl text-gray-600 dark:text-gray-400" />
+        ) : (
+          <FiMail className="text-xl text-gray-600 dark:text-gray-400" />
+        )}
+      </motion.button>
+
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 10, scale: 0.95 }}
+            transition={{ duration: 0.2 }}
+            className="absolute right-0 mt-4 w-72 rounded-xl 
+                      bg-white/40 dark:bg-gray-800/40 
+                      backdrop-blur-md border border-purple-500/30
+                      mt-6
+                      shadow-[0_0_30px_rgba(139,92,246,0.1)] z-50"
+          >
+            <div className="p-6 backdrop-blur-md bg-white/30 dark:bg-gray-800/30 rounded-xl">
+              <div className="flex items-center gap-3 mb-4">
+                {avatarUrl ? (
+                  <img 
+                    src={avatarUrl} 
+                    alt={userName}
+                    className="w-12 h-12 rounded-full border-2 border-purple-500/30 flex-shrink-0
+                             shadow-[0_0_15px_rgba(139,92,246,0.2)]"
+                  />
+                ) : (
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 
+                                 flex items-center justify-center text-white font-bold flex-shrink-0
+                                 shadow-[0_0_15px_rgba(139,92,246,0.2)]">
+                    {userName[0].toUpperCase()}
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <p className="font-medium text-gray-800 dark:text-white truncate">
+                    {userName}
+                  </p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
+                    {userEmail}
+                  </p>
+                </div>
+              </div>
+
+              <div className="h-px bg-gradient-to-r from-purple-500/20 via-blue-500/20 to-purple-500/20 my-4" />
+
+              {session && (
+                <>
+                  {session.user.email === 'federico.donati.work@gmail.com' ? (
+                    <>
+                      <Link
+                        href="/dashboard"
+                        className="w-full py-2 px-4 rounded-lg flex items-center gap-2
+                                  hover:bg-purple-500/20 transition-all duration-300
+                                  text-gray-600 dark:text-gray-400 group mb-2"
+                      >
+                        <FiPieChart className="text-lg group-hover:text-purple-500 transition-colors" />
+                        <span className="group-hover:text-purple-500 transition-colors">Dashboard</span>
+                      </Link>
+                      <Link
+                        href="/dashboard/requests"
+                        className="w-full py-2 px-4 rounded-lg flex items-center gap-2
+                                  hover:bg-purple-500/20 transition-all duration-300
+                                  text-gray-600 dark:text-gray-400 group mb-2"
+                      >
+                        <div className="relative">
+                          <FiMail className="text-lg group-hover:text-purple-500 transition-colors" />
+                          {hasNewRequests && (
+                            <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full" />
+                          )}
+                        </div>
+                        <span className="group-hover:text-purple-500 transition-colors">Richieste</span>
+                      </Link>
+                    </>
+                  ) : (
+                    <Link
+                      href="/requests"
+                      className="w-full py-2 px-4 rounded-lg flex items-center gap-2
+                                hover:bg-purple-500/20 transition-all duration-300
+                                text-gray-600 dark:text-gray-400 group mb-2"
+                    >
+                      <div className="relative">
+                        <FiMail className="text-lg group-hover:text-purple-500 transition-colors" />
+                        {hasNewAnswers && (
+                          <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full" />
+                        )}
+                      </div>
+                      <span className="group-hover:text-purple-500 transition-colors">Le mie Richieste</span>
+                    </Link>
+                  )}
+                </>
+              )}
+
+              <button
+                onClick={handleLogout}
+                className="w-full mt-2 py-2 px-4 rounded-lg flex items-center gap-2
+                          hover:bg-purple-500/20 transition-all duration-300
+                          hover:shadow-[0_0_15px_rgba(139,92,246,0.1)]
+                          text-gray-600 dark:text-gray-400 group"
+              >
+                <FiLogOut className="text-lg group-hover:text-purple-500 transition-colors" />
+                <span className="group-hover:text-purple-500 transition-colors">Logout</span>
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+} 
