@@ -11,32 +11,32 @@ import Link from 'next/link'
 const PLANS = [
   {
     id: 'info',
-    name: 'Informazioni',
-    description: 'Domande sui servizi',
+    name: 'Information',
+    description: 'Questions about services',
     icon: 'ℹ️'
   },
   {
     id: 'frontend',
-    name: 'Sito Web',
-    description: 'Design responsive e moderno',
+    name: 'Website',
+    description: 'Responsive and modern design',
     icon: '🎨'
   },
   {
     id: 'frontend_modern',
-    name: 'Sito Web Avanzato',
-    description: 'Con animazioni ed effetti',
+    name: 'Advanced Website',
+    description: 'With animations and effects',
     icon: '✨'
   },
   {
     id: 'fullstack',
     name: 'Web App',
-    description: 'Con database e autenticazione',
+    description: 'With database and authentication',
     icon: '⚡'
   },
   {
     id: 'fullstack_modern',
-    name: 'Web App Avanzata',
-    description: 'Con funzionalità real-time',
+    name: 'Advanced Web App',
+    description: 'With real-time features',
     icon: '🚀'
   }
 ]
@@ -64,7 +64,7 @@ export default function Contact() {
     }
 
     if (!subject.trim() || !message.trim()) {
-      setError('Per favore compila tutti i campi')
+      setError('Please fill in all fields')
       return
     }
 
@@ -76,6 +76,7 @@ export default function Contact() {
         .from('request')
         .insert({
           user_id: session.user.id,
+          from_user: session.user.email,
           plan: selectedPlan,
           text: `${subject}\n\n${message}`
         })
@@ -96,7 +97,7 @@ export default function Contact() {
       setSelectedPlan('info')
       router.push('/requests')
     } catch (error) {
-      setError('Errore durante l\'invio della richiesta')
+      setError('Error sending request')
       console.error(error)
     } finally {
       setLoading(false)
@@ -117,7 +118,7 @@ export default function Contact() {
           >
             <FiArrowLeft className="text-lg group-hover:text-purple-500 transition-colors" />
             <span className="group-hover:text-purple-500 transition-colors">
-              Torna alla Home
+              Back to Home
             </span>
           </Link>
         </div>
@@ -127,7 +128,7 @@ export default function Contact() {
           className="text-4xl font-bold mb-8 text-center bg-gradient-to-r from-purple-600 to-blue-600 
                      dark:from-purple-400 dark:to-blue-400 text-transparent bg-clip-text"
         >
-          Contattami
+          Contact Me
         </motion.h1>
 
         {!session ? (
@@ -138,9 +139,9 @@ export default function Contact() {
             className="text-center p-8 rounded-xl bg-white/10 dark:bg-gray-800/10 backdrop-blur-xl
                        border border-purple-500/20"
           >
-            <h2 className="text-xl font-bold mb-4">Accedi per Inviare un Messaggio</h2>
+            <h2 className="text-xl font-bold mb-4">Sign in to Send a Message</h2>
             <p className="text-gray-600 dark:text-gray-400 mb-6">
-              Per poter rispondere al meglio alle tue richieste, è necessario accedere.
+              To better respond to your requests, please sign in.
             </p>
             <button
               onClick={() => router.push('/signin')}
@@ -148,7 +149,7 @@ export default function Contact() {
                         text-white font-medium hover:shadow-[0_0_30px_rgba(139,92,246,0.3)] 
                         transition-all duration-300"
             >
-              Accedi
+              Sign In
             </button>
           </motion.div>
         ) : (
@@ -165,7 +166,7 @@ export default function Contact() {
                 type="text"
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
-                placeholder="Oggetto del messaggio"
+                placeholder="Message subject"
                 className="w-full px-4 py-2 rounded-xl bg-white/5 dark:bg-gray-800/5
                           border border-purple-500/20 focus:border-purple-500/40
                           focus:outline-none focus:ring-2 focus:ring-purple-500/20"
@@ -173,7 +174,7 @@ export default function Contact() {
               <textarea
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
-                placeholder="Descrivi la tua richiesta..."
+                placeholder="Describe your request..."
                 rows={6}
                 className="w-full px-4 py-2 rounded-xl bg-white/5 dark:bg-gray-800/5
                           border border-purple-500/20 focus:border-purple-500/40
@@ -215,7 +216,7 @@ export default function Contact() {
                           text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed
                           hover:shadow-[0_0_30px_rgba(139,92,246,0.3)] transition-all duration-300"
               >
-                {loading ? 'Invio in corso...' : 'Invia Messaggio'}
+                {loading ? 'Sending...' : 'Send Message'}
               </button>
             </div>
           </motion.form>

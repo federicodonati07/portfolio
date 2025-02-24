@@ -97,6 +97,51 @@ export function ProfileMenu() {
     }
   }, [session])
 
+  const checkNewAnswers = async () => {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return
+
+    // Fetch requests with answers
+    const { data: requests } = await supabase
+      .from('request')
+      .select('id, status')
+      .eq('user_id', session.user.id)
+      .eq('status', 'answered')
+
+    if (!requests) return
+
+    // Get viewed answers from localStorage
+    const storedViewed = localStorage.getItem('viewedAnswers')
+    const viewedSet = new Set(storedViewed ? JSON.parse(storedViewed) as number[] : [])
+
+    // Check if there are any unviewed answered requests
+    const hasUnviewed = requests.some(request => !viewedSet.has(request.id))
+    setHasNewAnswers(hasUnviewed)
+  }
+
+  useEffect(() => {
+    if (!session) return
+    
+    checkNewAnswers()
+
+    // Subscribe to realtime updates
+    const channel = supabase
+      .channel('request_updates')
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'request',
+        filter: `user_id=eq.${session.user.id}`
+      }, () => {
+        checkNewAnswers()
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [session])
+
   const handleLogout = async () => {
     await supabase.auth.signOut()
     router.push('/signin')
@@ -126,7 +171,7 @@ export function ProfileMenu() {
   const userName = session.user.user_metadata.name || userEmail?.split('@')[0] || 'User'
   const avatarUrl = session.user.user_metadata.avatar_url
 
-  const isAdmin = userEmail && userEmail === 'federico.donati.work@gmail.com'
+  const isAdmin = userEmail && userEmail === process.env.NEXT_PUBLIC_ADMIN_EMAIL
 
   return (
     <div 
@@ -224,7 +269,7 @@ export function ProfileMenu() {
                             <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full" />
                           )}
                         </div>
-                        <span className="group-hover:text-purple-500 transition-colors">Richieste</span>
+                        <span className="group-hover:text-purple-500 transition-colors">Manage Requests</span>
                       </Link>
                     </>
                   ) : (
@@ -240,17 +285,18 @@ export function ProfileMenu() {
                           <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full" />
                         )}
                       </div>
-                      <span className="group-hover:text-purple-500 transition-colors">Le mie Richieste</span>
+                      <span className="group-hover:text-purple-500 transition-colors">My Requests</span>
                     </Link>
                   )}
                 </>
               )}
 
+              <div className="h-px bg-gradient-to-r from-purple-500/20 via-blue-500/20 to-purple-500/20 my-2" />
+
               <button
                 onClick={handleLogout}
-                className="w-full mt-2 py-2 px-4 rounded-lg flex items-center gap-2
+                className="w-full py-2 px-4 rounded-lg flex items-center gap-2
                           hover:bg-purple-500/20 transition-all duration-300
-                          hover:shadow-[0_0_15px_rgba(139,92,246,0.1)]
                           text-gray-600 dark:text-gray-400 group"
               >
                 <FiLogOut className="text-lg group-hover:text-purple-500 transition-colors" />

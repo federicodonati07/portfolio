@@ -30,7 +30,7 @@ const server = createServer(async (req, res) => {
           Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
         },
         body: JSON.stringify({
-          to: "federico.donati.work@gmail.com",
+          to: process.env.SUPABASE_ADMIN_EMAIL,
           subject: "Nuova richiesta ricevuta",
           content: `
             Nuova richiesta da ${userName} (${userEmail})

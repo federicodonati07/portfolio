@@ -9,6 +9,7 @@ import Link from 'next/link'
 import Chart from 'chart.js/auto'
 import { format } from 'date-fns'
 import { CountUp } from '@/components/CountUp'
+import Image from 'next/image'
 
 interface User {
   id: string
@@ -55,6 +56,7 @@ export default function Dashboard() {
   const chartRef = useRef<HTMLCanvasElement>(null)
   const chartInstance = useRef<Chart | null>(null)
   const router = useRouter()
+  const [hasNewRequests, setHasNewRequests] = useState(false)
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -130,67 +132,96 @@ export default function Dashboard() {
     const ctx = chartRef.current.getContext('2d')
     if (!ctx) return
 
-    // Raggruppa gli utenti per data
-    const usersByDate = users.reduce((acc: Record<string, { total: number, github: number, email: number }>, user) => {
-      const date = format(new Date(user.created_at), 'yyyy-MM-dd')
-      if (!acc[date]) {
-        acc[date] = { total: 0, github: 0, email: 0 }
-      }
-      acc[date].total++
-      
-      const isGithubUser = user.app_metadata?.provider === 'github' || 
-                          user.identities?.some(id => id.provider === 'github')
-      if (isGithubUser) {
-        acc[date].github++
-      } else {
-        acc[date].email++
-      }
-      return acc
-    }, {})
+    // Ottieni gli ultimi 30 giorni
+    const last30Days = Array.from({ length: 30 }, (_, i) => {
+      const date = new Date()
+      date.setDate(date.getDate() - (29 - i))
+      return format(date, 'yyyy-MM-dd')
+    })
 
-    const dates = Object.keys(usersByDate).sort()
-    const data = {
-      total: dates.map(date => usersByDate[date].total),
-      github: dates.map(date => usersByDate[date].github),
-      email: dates.map(date => usersByDate[date].email)
-    }
+    // Inizializza i dati per ogni giorno
+    const usersByDate = last30Days.reduce((acc, date) => {
+      acc[date] = { total: 0, github: 0, email: 0 }
+      return acc
+    }, {} as Record<string, { total: number, github: number, email: number }>)
+
+    // Calcola il totale cumulativo degli utenti per ogni giorno
+    users.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+    let runningTotalAll = 0
+    let runningTotalGithub = 0
+    let runningTotalEmail = 0
+
+    users.forEach(user => {
+      const date = format(new Date(user.created_at), 'yyyy-MM-dd')
+      if (usersByDate[date]) {
+        const isGithubUser = user.app_metadata?.provider === 'github' || 
+                            user.identities?.some(id => id.provider === 'github')
+        
+        if (isGithubUser) runningTotalGithub++
+        else runningTotalEmail++
+        runningTotalAll++
+
+        usersByDate[date] = {
+          total: runningTotalAll,
+          github: runningTotalGithub,
+          email: runningTotalEmail
+        }
+      }
+    })
+
+    // Riempi i giorni senza registrazioni con il valore precedente
+    let lastValues = { total: 0, github: 0, email: 0 }
+    last30Days.forEach(date => {
+      if (usersByDate[date].total === 0) {
+        usersByDate[date] = { ...lastValues }
+      } else {
+        lastValues = usersByDate[date]
+      }
+    })
 
     chartInstance.current = new Chart(ctx, {
       type: 'line',
       data: {
-        labels: dates.map(date => format(new Date(date), 'MMM d')),
+        labels: last30Days.map(date => format(new Date(date), 'd MMM')),
         datasets: [
           {
             label: 'Total Users',
-            data: data.total,
+            data: last30Days.map(date => usersByDate[date].total),
             borderColor: 'rgb(147, 51, 234)',
             backgroundColor: 'rgba(147, 51, 234, 0.1)',
             tension: 0.4,
             fill: true,
-            borderWidth: 2
+            borderWidth: 2,
+            pointRadius: 4,
+            pointHoverRadius: 6
           },
           {
             label: 'GitHub Users',
-            data: data.github,
+            data: last30Days.map(date => usersByDate[date].github),
             borderColor: 'rgb(37, 99, 235)',
             backgroundColor: 'rgba(37, 99, 235, 0.1)',
             tension: 0.4,
             fill: true,
-            borderWidth: 2
+            borderWidth: 2,
+            pointRadius: 4,
+            pointHoverRadius: 6
           },
           {
             label: 'Email Users',
-            data: data.email,
+            data: last30Days.map(date => usersByDate[date].email),
             borderColor: 'rgb(34, 197, 94)',
             backgroundColor: 'rgba(34, 197, 94, 0.1)',
             tension: 0.4,
             fill: true,
-            borderWidth: 2
+            borderWidth: 2,
+            pointRadius: 4,
+            pointHoverRadius: 6
           }
         ]
       },
       options: {
         responsive: true,
+        maintainAspectRatio: false,
         interaction: {
           intersect: false,
           mode: 'index'
@@ -203,6 +234,7 @@ export default function Dashboard() {
               usePointStyle: true,
               pointStyle: 'circle',
               padding: 20,
+              color: 'rgb(107, 114, 128)',
               font: {
                 size: 12,
                 family: "'Inter', sans-serif"
@@ -210,7 +242,7 @@ export default function Dashboard() {
             }
           },
           tooltip: {
-            backgroundColor: 'rgba(255, 255, 255, 0.8)',
+            backgroundColor: 'rgba(255, 255, 255, 0.9)',
             titleColor: '#1f2937',
             bodyColor: '#1f2937',
             borderColor: 'rgba(147, 51, 234, 0.2)',
@@ -225,7 +257,12 @@ export default function Dashboard() {
               family: "'Inter', sans-serif",
               weight: 'bold'
             },
-            boxPadding: 6
+            boxPadding: 6,
+            callbacks: {
+              title: (tooltipItems) => {
+                return format(new Date(last30Days[tooltipItems[0].dataIndex]), 'dd MMMM yyyy')
+              }
+            }
           }
         },
         scales: {
@@ -234,6 +271,7 @@ export default function Dashboard() {
               display: false
             },
             ticks: {
+              color: 'rgb(107, 114, 128)',
               font: {
                 size: 12,
                 family: "'Inter', sans-serif"
@@ -244,10 +282,11 @@ export default function Dashboard() {
             beginAtZero: true,
             grid: {
               color: 'rgba(147, 51, 234, 0.1)',
-              display: true,
-              drawOnChartArea: true
+              drawBorder: false
             },
             ticks: {
+              color: 'rgb(107, 114, 128)',
+              padding: 10,
               stepSize: 1,
               font: {
                 size: 12,
@@ -306,6 +345,39 @@ export default function Dashboard() {
       }
     })
 
+  const checkNotifications = async () => {
+    try {
+      const { data: requests } = await supabase
+        .from('request')
+        .select('id')
+        .eq('status', 'pending')
+
+      setHasNewRequests(requests && requests.length > 0)
+    } catch (error) {
+      console.error('Error checking notifications:', error)
+    }
+  }
+
+  useEffect(() => {
+    checkNotifications()
+
+    // Subscribe to changes
+    const channel = supabase
+      .channel('request_changes')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'request'
+      }, () => {
+        checkNotifications()
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [])
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white dark:from-gray-900 dark:to-black p-8">
       <Link 
@@ -329,9 +401,14 @@ export default function Dashboard() {
                       text-gray-600 dark:text-gray-300
                       transition-all duration-300 group"
           >
-            <FiMail className="text-lg group-hover:text-purple-500 transition-colors" />
+            <div className="relative">
+              <FiMail className="text-lg group-hover:text-purple-500 transition-colors" />
+              {hasNewRequests && (
+                <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full" />
+              )}
+            </div>
             <span className="group-hover:text-purple-500 transition-colors">
-              Gestisci Richieste
+              Manage Requests
             </span>
           </Link>
         </div>
@@ -451,110 +528,163 @@ export default function Dashboard() {
           className="p-6 rounded-xl bg-white/10 dark:bg-gray-800/10 backdrop-blur-xl
                      border border-purple-500/20 shadow-lg"
         >
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex flex-col space-y-4 mb-6">
             <div className="flex items-center gap-3">
               <FiUsers className="text-2xl text-purple-500" />
               <h3 className="text-xl font-bold text-gray-800 dark:text-white">User Management</h3>
             </div>
-            <div className="flex items-center gap-4">
+            
+            {/* Controlli responsivi */}
+            <div className="flex flex-col sm:flex-row gap-4">
               {/* Search */}
-              <div className="relative">
+              <div className="relative flex-grow">
                 <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                 <input
                   type="text"
                   value={stats.searchTerm}
                   onChange={(e) => setStats(prev => ({ ...prev, searchTerm: e.target.value }))}
                   placeholder="Search users..."
-                  className="pl-10 pr-4 py-2 rounded-xl bg-white/5 border border-purple-500/20 
+                  className="w-full pl-10 pr-4 py-2 rounded-xl bg-white/5 border border-purple-500/20 
                             focus:border-purple-500/40 focus:outline-none focus:ring-2 focus:ring-purple-500/20
                             text-gray-800 dark:text-white placeholder-gray-400"
                 />
               </div>
 
-              {/* Filter */}
-              <select
-                value={stats.filterProvider}
-                onChange={(e) => setStats(prev => ({ ...prev, filterProvider: e.target.value as 'all' | 'github' | 'email' }))}
-                className="px-4 py-2 rounded-xl bg-white/5 border border-purple-500/20 
-                          focus:border-purple-500/40 focus:outline-none
-                          text-gray-800 dark:text-white
-                          appearance-none cursor-pointer
-                          bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20fill%3D%22none%22%20viewBox%3D%220%200%2024%2024%22%20stroke%3D%22%236b7280%22%3E%3Cpath%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20stroke-width%3D%222%22%20d%3D%22M19%209l-7%207-7-7%22%2F%3E%3C%2Fsvg%3E')]
-                          bg-[length:1.5em_1.5em]
-                          bg-[right_0.5rem_center]
-                          bg-no-repeat
-                          pr-10
-                          hover:border-purple-500/40
-                          transition-all duration-300"
-              >
-                <option value="all" className="bg-white dark:bg-gray-800">All Users</option>
-                <option value="github" className="bg-white dark:bg-gray-800">GitHub Users</option>
-                <option value="email" className="bg-white dark:bg-gray-800">Email Users</option>
-              </select>
+              <div className="flex flex-row gap-4 sm:flex-nowrap">
+                {/* Filter */}
+                <select
+                  value={stats.filterProvider}
+                  onChange={(e) => setStats(prev => ({ ...prev, filterProvider: e.target.value as 'all' | 'github' | 'email' }))}
+                  className="w-full sm:w-auto px-4 py-2 rounded-xl bg-white/5 border border-purple-500/20 
+                            focus:border-purple-500/40 focus:outline-none
+                            text-gray-800 dark:text-white
+                            appearance-none cursor-pointer
+                            bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20fill%3D%22none%22%20viewBox%3D%220%200%2024%2024%22%20stroke%3D%22%236b7280%22%3E%3Cpath%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20stroke-width%3D%222%22%20d%3D%22M19%209l-7%207-7-7%22%2F%3E%3C%2Fsvg%3E')]
+                            bg-[length:1.5em_1.5em]
+                            bg-[right_0.5rem_center]
+                            bg-no-repeat
+                            pr-10
+                            hover:border-purple-500/40
+                            transition-all duration-300"
+                >
+                  <option value="all" className="bg-white dark:bg-gray-800">All Users</option>
+                  <option value="github" className="bg-white dark:bg-gray-800">GitHub Users</option>
+                  <option value="email" className="bg-white dark:bg-gray-800">Email Users</option>
+                </select>
 
-              {/* Sort */}
-              <select
-                value={stats.sortBy}
-                onChange={(e) => setStats(prev => ({ ...prev, sortBy: e.target.value as 'newest' | 'oldest' | 'name' }))}
-                className="px-4 py-2 rounded-xl bg-white/5 border border-purple-500/20 
-                          focus:border-purple-500/40 focus:outline-none
-                          text-gray-800 dark:text-white
-                          appearance-none cursor-pointer
-                          bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20fill%3D%22none%22%20viewBox%3D%220%200%2024%2024%22%20stroke%3D%22%236b7280%22%3E%3Cpath%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20stroke-width%3D%222%22%20d%3D%22M19%209l-7%207-7-7%22%2F%3E%3C%2Fsvg%3E')]
-                          bg-[length:1.5em_1.5em]
-                          bg-[right_0.5rem_center]
-                          bg-no-repeat
-                          pr-10
-                          hover:border-purple-500/40
-                          transition-all duration-300"
-              >
-                <option value="newest" className="bg-white dark:bg-gray-800">Newest First</option>
-                <option value="oldest" className="bg-white dark:bg-gray-800">Oldest First</option>
-                <option value="name" className="bg-white dark:bg-gray-800">By Name</option>
-              </select>
+                {/* Sort */}
+                <select
+                  value={stats.sortBy}
+                  onChange={(e) => setStats(prev => ({ ...prev, sortBy: e.target.value as 'newest' | 'oldest' | 'name' }))}
+                  className="w-full sm:w-auto px-4 py-2 rounded-xl bg-white/5 border border-purple-500/20 
+                            focus:border-purple-500/40 focus:outline-none
+                            text-gray-800 dark:text-white
+                            appearance-none cursor-pointer
+                            bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20fill%3D%22none%22%20viewBox%3D%220%200%2024%2024%22%20stroke%3D%22%236b7280%22%3E%3Cpath%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20stroke-width%3D%222%22%20d%3D%22M19%209l-7%207-7-7%22%2F%3E%3C%2Fsvg%3E')]
+                            bg-[length:1.5em_1.5em]
+                            bg-[right_0.5rem_center]
+                            bg-no-repeat
+                            pr-10
+                            hover:border-purple-500/40
+                            transition-all duration-300"
+                >
+                  <option value="newest" className="bg-white dark:bg-gray-800">Newest First</option>
+                  <option value="oldest" className="bg-white dark:bg-gray-800">Oldest First</option>
+                  <option value="name" className="bg-white dark:bg-gray-800">By Name</option>
+                </select>
+              </div>
             </div>
           </div>
 
           <div className="space-y-4">
-            {filteredUsers.map((user: User) => (
-              <div
-                key={user.id}
-                className="p-4 rounded-lg bg-white/5 dark:bg-gray-800/5
-                          border border-purple-500/10 flex items-center justify-between"
-              >
-                <div>
-                  <p className="font-medium text-gray-800 dark:text-white">
-                    {user.user_metadata?.name || user.email}
-                  </p>
-                  <p className="text-sm text-gray-500">
-                    {format(new Date(user.created_at), 'PPP')}
-                  </p>
-                </div>
-                <div className="flex items-center gap-4">
-                  <span className={`px-3 py-1 rounded-full text-sm ${
-                    user.app_metadata?.provider === 'github'
-                      ? 'bg-blue-500/10 text-blue-500'
-                      : 'bg-green-500/10 text-green-500'
-                  }`}>
-                    {user.app_metadata?.provider || 'email'}
-                  </span>
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => handleDeleteUser(user.id)}
-                    disabled={deleteLoading === user.id}
-                    className="p-2 rounded-lg text-red-500 hover:bg-red-500/10
-                              transition-colors duration-300 disabled:opacity-50"
-                  >
-                    {deleteLoading === user.id ? (
-                      <div className="w-5 h-5 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      <FiTrash2 className="text-lg" />
-                    )}
-                  </motion.button>
-                </div>
-              </div>
-            ))}
+            {/* Users Management Table */}
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-purple-500/30">
+                <thead className="bg-purple-500/5">
+                  <tr>
+                    <th className="px-6 py-4 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Name
+                    </th>
+                    <th className="px-6 py-4 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Email
+                    </th>
+                    <th className="px-6 py-4 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Provider
+                    </th>
+                    <th className="px-6 py-4 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-purple-500/30">
+                  {filteredUsers.map((user: User) => (
+                    <tr key={user.id} className="hover:bg-purple-500/5 transition-colors">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center gap-3">
+                          {user.user_metadata?.avatar_url ? (
+                            <Image
+                              src={user.user_metadata.avatar_url}
+                              alt={user.user_metadata?.name || ''}
+                              width={32}
+                              height={32}
+                              className="rounded-full border-2 border-purple-500/30"
+                            />
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 
+                                          flex items-center justify-center text-white text-sm font-medium">
+                              {(user.user_metadata?.name?.[0] || user.email?.[0] || '?').toUpperCase()}
+                            </div>
+                          )}
+                          <span className="text-gray-700 dark:text-gray-300">
+                            {user.user_metadata?.name || user.email?.split('@')[0]}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-gray-600 dark:text-gray-400">
+                        {user.email}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {user.app_metadata?.provider === 'github' || 
+                         user.identities?.some(id => id.provider === 'github') ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium
+                                        bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300">
+                            <FiGithub className="text-sm" />
+                            GitHub
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium
+                                        bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300">
+                            <FiMail className="text-sm" />
+                            Email
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <motion.button
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => handleDeleteUser(user.id)}
+                          disabled={deleteLoading === user.id}
+                          className="inline-flex items-center gap-1 px-3 py-1 rounded-lg text-sm
+                                    bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300
+                                    hover:bg-red-200 dark:hover:bg-red-900/50 
+                                    transition-all duration-300"
+                        >
+                          {deleteLoading === user.id ? (
+                            <div className="w-4 h-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <>
+                              <FiTrash2 className="text-sm" />
+                              Delete
+                            </>
+                          )}
+                        </motion.button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </motion.div>
       </div>
