@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
@@ -57,6 +57,8 @@ export default function Dashboard() {
   const chartInstance = useRef<Chart | null>(null)
   const router = useRouter()
   const [hasNewRequests, setHasNewRequests] = useState(false)
+  const [users, setUsers] = useState<User[]>([])
+  const [selectedProvider, setSelectedProvider] = useState<string>('all')
 
   const fetchStats = useCallback(async () => {
     try {
@@ -306,32 +308,41 @@ export default function Dashboard() {
     }
   }
 
-  const filteredUsers = stats.allUsers
-    .filter(user => {
-      const matchesSearch = (
-        (user.user_metadata?.name || '').toLowerCase().includes(stats.searchTerm.toLowerCase()) ||
-        (user.email || '').toLowerCase().includes(stats.searchTerm.toLowerCase())
-      )
-
-      const matchesProvider = stats.filterProvider === 'all' ? true :
-        stats.filterProvider === 'github' ?
-          (user.app_metadata?.provider === 'github' || user.identities?.some(id => id.provider === 'github')) :
-          (!user.app_metadata?.provider && !user.identities?.some(id => id.provider === 'github'))
-
-      return matchesSearch && matchesProvider
-    })
-    .sort((a, b) => {
-      switch (stats.sortBy) {
-        case 'newest':
-          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        case 'oldest':
-          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-        case 'name':
-          return (a.user_metadata?.name || a.email || '').localeCompare(b.user_metadata?.name || b.email || '')
-        default:
-          return 0
+  const fetchUsers = async () => {
+    try {
+      const response = await fetch('/api/admin/users')
+      if (!response.ok) throw new Error('Failed to fetch users')
+      
+      const users = await response.json()
+      if (users && Array.isArray(users)) {
+        setUsers(users)
+        console.log('Fetched users:', users)
       }
+    } catch (error) {
+      console.error('Error fetching users:', error)
+    }
+  }
+
+  const filteredUsers = useMemo(() => {
+    console.log('All users:', users)
+    console.log('Selected provider:', selectedProvider)
+
+    if (selectedProvider === 'all') return users
+
+    return users.filter(user => {
+      // Controlla il provider sia in app_metadata che in identities
+      const isGithubUser = 
+        user.app_metadata?.provider === 'github' || 
+        user.identities?.some(id => id.provider === 'github')
+      
+      console.log('User:', user.email, 'Is Github:', isGithubUser)
+      
+      if (selectedProvider === 'email') {
+        return !isGithubUser
+      }
+      return isGithubUser
     })
+  }, [users, selectedProvider])
 
   const checkNotifications = async () => {
     try {
@@ -374,6 +385,7 @@ export default function Dashboard() {
         return
       }
       fetchStats()
+      fetchUsers()
     }
     checkAuth()
   }, [router, fetchStats])
@@ -553,10 +565,10 @@ export default function Dashboard() {
               <div className="flex flex-row gap-4 sm:flex-nowrap">
                 {/* Filter */}
                 <select
-                  value={stats.filterProvider}
-                  onChange={(e) => setStats(prev => ({ ...prev, filterProvider: e.target.value as 'all' | 'github' | 'email' }))}
-                  className="w-full sm:w-auto px-4 py-2 rounded-xl bg-white/5 border border-purple-500/20 
-                            focus:border-purple-500/40 focus:outline-none
+                  value={selectedProvider}
+                  onChange={(e) => setSelectedProvider(e.target.value)}
+                  className="w-full sm:w-auto px-4 py-2 rounded-xl bg-white/5 dark:bg-gray-800/5 
+                            border border-purple-500/20 focus:border-purple-500/40 focus:outline-none
                             text-gray-800 dark:text-white
                             appearance-none cursor-pointer
                             bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20fill%3D%22none%22%20viewBox%3D%220%200%2024%2024%22%20stroke%3D%22%236b7280%22%3E%3Cpath%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20stroke-width%3D%222%22%20d%3D%22M19%209l-7%207-7-7%22%2F%3E%3C%2Fsvg%3E')]
@@ -567,17 +579,23 @@ export default function Dashboard() {
                             hover:border-purple-500/40
                             transition-all duration-300"
                 >
-                  <option value="all" className="bg-white dark:bg-gray-800">All Users</option>
-                  <option value="github" className="bg-white dark:bg-gray-800">GitHub Users</option>
-                  <option value="email" className="bg-white dark:bg-gray-800">Email Users</option>
+                  <option value="all" className="bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200">
+                    All Providers
+                  </option>
+                  <option value="email" className="bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200">
+                    Email
+                  </option>
+                  <option value="github" className="bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200">
+                    GitHub
+                  </option>
                 </select>
 
                 {/* Sort */}
                 <select
                   value={stats.sortBy}
                   onChange={(e) => setStats(prev => ({ ...prev, sortBy: e.target.value as 'newest' | 'oldest' | 'name' }))}
-                  className="w-full sm:w-auto px-4 py-2 rounded-xl bg-white/5 border border-purple-500/20 
-                            focus:border-purple-500/40 focus:outline-none
+                  className="w-full sm:w-auto px-4 py-2 rounded-xl bg-white/5 dark:bg-gray-800/5 
+                            border border-purple-500/20 focus:border-purple-500/40 focus:outline-none
                             text-gray-800 dark:text-white
                             appearance-none cursor-pointer
                             bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20fill%3D%22none%22%20viewBox%3D%220%200%2024%2024%22%20stroke%3D%22%236b7280%22%3E%3Cpath%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20stroke-width%3D%222%22%20d%3D%22M19%209l-7%207-7-7%22%2F%3E%3C%2Fsvg%3E')]
@@ -588,9 +606,15 @@ export default function Dashboard() {
                             hover:border-purple-500/40
                             transition-all duration-300"
                 >
-                  <option value="newest" className="bg-white dark:bg-gray-800">Newest First</option>
-                  <option value="oldest" className="bg-white dark:bg-gray-800">Oldest First</option>
-                  <option value="name" className="bg-white dark:bg-gray-800">By Name</option>
+                  <option value="newest" className="bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200">
+                    Newest First
+                  </option>
+                  <option value="oldest" className="bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200">
+                    Oldest First
+                  </option>
+                  <option value="name" className="bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200">
+                    By Name
+                  </option>
                 </select>
               </div>
             </div>

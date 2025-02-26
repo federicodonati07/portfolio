@@ -14,7 +14,6 @@ export function ProfileMenu() {
   const [isOpen, setIsOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(true)
   const [hasNewRequests, setHasNewRequests] = useState(false)
-  const [hasNewAnswers, setHasNewAnswers] = useState(false)
   const router = useRouter()
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -28,12 +27,47 @@ export function ProfileMenu() {
     return () => window.removeEventListener('resize', checkIsMobile)
   }, [])
 
-  // Gestione autenticazione
+  // Funzione unificata per controllare le notifiche
+  const checkNotifications = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
+
+      if (session.user.email === 'federico.donati.work@gmail.com') {
+        // Controlla nuove richieste per l'admin
+        const { data: pendingRequests } = await supabase
+          .from('request')
+          .select('id')
+          .eq('status', 'pending')
+        
+        setHasNewRequests(!!(pendingRequests && pendingRequests.length > 0))
+      } else {
+        // Controlla nuove risposte non visualizzate per l'utente
+        const { data: unreadResponses, error } = await supabase
+          .from('request')
+          .select('id')
+          .eq('user_id', session.user.id)
+          .eq('status', 'answered')
+          .eq('viewed_by_user', 'false')
+
+        if (error) {
+          console.error('Error checking notifications:', error)
+          return
+        }
+
+        setHasNewRequests(unreadResponses && unreadResponses.length > 0)
+      }
+    } catch (error) {
+      console.error('Error checking notifications:', error)
+    }
+  }
+
+  // Gestione autenticazione e notifiche iniziali
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
       if (session) {
-        checkNotifications(session)
+        checkNotifications()
       }
     })
 
@@ -42,102 +76,37 @@ export function ProfileMenu() {
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session)
       if (session) {
-        checkNotifications(session)
+        checkNotifications()
       }
     })
 
     return () => subscription.unsubscribe()
   }, [])
 
-  // Controlla le notifiche
-  const checkNotifications = async (session: Session) => {
-    const isAdmin = session.user.email === 'federico.donati.work@gmail.com'
-
-    if (isAdmin) {
-      // Controlla nuove richieste per l'admin
-      const { data: pendingRequests } = await supabase
-        .from('request')
-        .select('id')
-        .eq('status', 'pending')
-      
-      setHasNewRequests(!!(pendingRequests && pendingRequests.length > 0))
-    } else {
-      // Controlla nuove risposte per l'utente
-      const { data: answeredRequests } = await supabase
-        .from('request')
-        .select('id')
-        .eq('user_id', session.user.id)
-        .eq('status', 'answered')
-      
-      setHasNewAnswers(!!(answeredRequests && answeredRequests.length > 0))
-    }
-  }
-
-  // Imposta un listener per le modifiche alla tabella request
+  // Ascolta i cambiamenti nella tabella request
   useEffect(() => {
     if (!session) return
 
+    // Ascolta l'evento di visualizzazione delle richieste
+    const handleRequestsViewed = () => {
+      checkNotifications()
+    }
+    window.addEventListener('requestsViewed', handleRequestsViewed)
+
+    // Ascolta i cambiamenti nella tabella request
     const channel = supabase
       .channel('request_changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'request'
-        },
-        () => {
-          checkNotifications(session)
-        }
-      )
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(channel)
-    }
-  }, [session])
-
-  const checkNewAnswers = async () => {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) return
-
-    // Fetch requests with answers
-    const { data: requests } = await supabase
-      .from('request')
-      .select('id, status')
-      .eq('user_id', session.user.id)
-      .eq('status', 'answered')
-
-    if (!requests) return
-
-    // Get viewed answers from localStorage
-    const storedViewed = localStorage.getItem('viewedAnswers')
-    const viewedSet = new Set(storedViewed ? JSON.parse(storedViewed) as number[] : [])
-
-    // Check if there are any unviewed answered requests
-    const hasUnviewed = requests.some(request => !viewedSet.has(request.id))
-    setHasNewAnswers(hasUnviewed)
-  }
-
-  useEffect(() => {
-    if (!session) return
-    
-    checkNewAnswers()
-
-    // Subscribe to realtime updates
-    const channel = supabase
-      .channel('request_updates')
       .on('postgres_changes', {
-        event: 'UPDATE',
+        event: '*',
         schema: 'public',
-        table: 'request',
-        filter: `user_id=eq.${session.user.id}`
+        table: 'request'
       }, () => {
-        checkNewAnswers()
+        checkNotifications()
       })
       .subscribe()
 
     return () => {
+      window.removeEventListener('requestsViewed', handleRequestsViewed)
       supabase.removeChannel(channel)
     }
   }, [session])
@@ -275,17 +244,22 @@ export function ProfileMenu() {
                   ) : (
                     <Link
                       href="/requests"
-                      className="w-full py-2 px-4 rounded-lg flex items-center gap-2
+                      className="w-full py-2 px-4 rounded-lg flex items-center justify-between
                                 hover:bg-purple-500/20 transition-all duration-300
                                 text-gray-600 dark:text-gray-400 group mb-2"
                     >
-                      <div className="relative">
+                      <div className="flex items-center gap-2">
                         <FiMail className="text-lg group-hover:text-purple-500 transition-colors" />
-                        {hasNewAnswers && (
-                          <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full" />
-                        )}
+                        <span className="group-hover:text-purple-500 transition-colors">
+                          My Requests
+                        </span>
                       </div>
-                      <span className="group-hover:text-purple-500 transition-colors">My Requests</span>
+                      {hasNewRequests && (
+                        <span className="flex h-2 w-2 relative">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-500 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-purple-500"></span>
+                        </span>
+                      )}
                     </Link>
                   )}
                 </>

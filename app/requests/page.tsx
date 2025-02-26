@@ -45,11 +45,11 @@ export default function Requests() {
       const { data, error } = await supabase
         .from('request')
         .select('*')
+        .eq('user_id', session.user.id)
         .order('created_at', { ascending: false })
 
       if (error) throw error
-      
-      setRequests(data)
+      setRequests(data || [])
     } catch (error) {
       console.error('Error fetching requests:', error)
     } finally {
@@ -60,7 +60,6 @@ export default function Requests() {
   useEffect(() => {
     fetchRequests()
 
-    // Sottoscrivi ai cambiamenti delle richieste
     const channel = supabase
       .channel('request_changes')
       .on('postgres_changes', {
@@ -77,7 +76,61 @@ export default function Requests() {
     }
   }, [fetchRequests])
 
-  const isRequestUnviewed = (request: Request) => request.viewed_by_user === "false"
+  const toggleResponse = async (requestId: number) => {
+    try {
+      const request = requests.find(r => r.id === requestId)
+      if (!request) return
+
+      // Se stiamo aprendo una risposta non ancora visualizzata
+      if (!expandedRequests.has(requestId) && 
+          request.status === 'answered' && 
+          request.viewed_by_user === "false") {
+        
+        console.log('Updating request:', requestId)
+
+        const { error } = await supabase
+          .from('request')
+          .update({
+            viewed_by_user: "true"  // Usiamo "true" invece di null
+          })
+          .eq('id', requestId)
+
+        if (error) {
+          console.error('Error updating viewed status:', error)
+          return
+        }
+
+        console.log('Database updated successfully')
+
+        setRequests(prev => 
+          prev.map(req => 
+            req.id === requestId 
+              ? { ...req, viewed_by_user: "true" }  // Aggiorniamo anche qui
+              : req
+          )
+        )
+
+        window.dispatchEvent(new Event('requestsViewed'))
+      }
+
+      setExpandedRequests(prev => {
+        const newSet = new Set(prev)
+        if (newSet.has(requestId)) {
+          newSet.delete(requestId)
+        } else {
+          newSet.add(requestId)
+        }
+        return newSet
+      })
+
+    } catch (error) {
+      console.error('Error in toggleResponse:', error)
+    }
+  }
+
+  // Helper per verificare se una richiesta non è stata vista
+  const isRequestUnviewed = (request: Request) => 
+    request.status === 'answered' && request.viewed_by_user === "false"
 
   const handleDelete = async (id: number) => {
     try {
@@ -91,41 +144,6 @@ export default function Requests() {
     } catch (error) {
       console.error('Error deleting request:', error)
     }
-  }
-
-  const toggleResponse = async (requestId: number) => {
-    const request = requests.find(r => r.id === requestId)
-    
-    // Gestisce l'espansione/collasso della risposta
-    setExpandedRequests(prev => {
-      const newSet = new Set(prev)
-      if (newSet.has(requestId)) {
-        newSet.delete(requestId)
-      } else {
-        newSet.add(requestId)
-        // Se stiamo aprendo la risposta e non è stata vista, la marchiamo come vista
-        if (request?.status === 'answered' && isRequestUnviewed(request)) {
-          // Aggiorna il database
-          supabase
-            .from('request')
-            .update({ viewed_by_user: "true" })
-            .eq('id', requestId)
-            .then(({ error }) => {
-              if (!error) {
-                // Aggiorna lo stato locale solo se l'update è riuscito
-                setRequests(prev => 
-                  prev.map(req => 
-                    req.id === requestId 
-                      ? { ...req, viewed_by_user: "true" }
-                      : req
-                  )
-                )
-              }
-            })
-        }
-      }
-      return newSet
-    })
   }
 
   return (
@@ -197,18 +215,11 @@ export default function Requests() {
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 sm:gap-4">
-                  {request.status === 'answered' && isRequestUnviewed(request) && (
+                  {isRequestUnviewed(request) && (
                     <span className="flex items-center gap-2 px-3 py-1 rounded-full
                                    bg-purple-500/10 text-purple-500 font-medium animate-pulse">
                       <FiMail />
                       New response
-                    </span>
-                  )}
-                  {request.status === 'pending' && (
-                    <span className="flex items-center gap-2 px-3 py-1 rounded-full
-                                   bg-purple-500/10 text-purple-500 font-medium">
-                      <FiMail />
-                      Pending
                     </span>
                   )}
                   {request.status === 'pending' && (
