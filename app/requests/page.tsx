@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
@@ -146,6 +146,21 @@ export default function Requests() {
     }
   }
 
+  // Aggiungi useMemo per l'ordinamento delle richieste
+  const sortedRequests = useMemo(() => {
+    return [...requests].sort((a, b) => {
+      // Prima controlla se ci sono risposte non lette
+      const aUnread = a.status === 'answered' && a.viewed_by_user === 'false'
+      const bUnread = b.status === 'answered' && b.viewed_by_user === 'false'
+      
+      if (aUnread && !bUnread) return -1
+      if (!aUnread && bUnread) return 1
+      
+      // Se entrambe sono lette o non lette, ordina per data di creazione (più recenti prima)
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    })
+  }, [requests])
+
   return (
     <div className="h-screen flex flex-col py-20 px-4">
       <div className="flex-none mb-8">
@@ -188,7 +203,7 @@ export default function Requests() {
 
       <div className="flex-1 overflow-y-auto min-h-0">
         <div className="container mx-auto max-w-4xl space-y-4 pr-2">
-          {requests.map(request => (
+          {sortedRequests.map(request => (
             <motion.div
               key={request.id}
               initial={{ opacity: 0, y: 20 }}
