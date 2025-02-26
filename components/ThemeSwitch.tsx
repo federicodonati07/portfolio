@@ -18,7 +18,7 @@ export function ThemeSwitch() {
   return (
     <Button
       className="bg-gradient-to-r from-purple-500 to-blue-500 hover:shadow-lg hover:shadow-purple-500/50 transition-all duration-300"
-      onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+      onPress={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
     >
       {theme === 'dark' ? (
         <FiSun className="h-5 w-5" />

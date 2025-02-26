@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
@@ -58,19 +58,7 @@ export default function Dashboard() {
   const router = useRouter()
   const [hasNewRequests, setHasNewRequests] = useState(false)
 
-  useEffect(() => {
-    const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session || session.user.email !== 'federico.donati.work@gmail.com') {
-        router.push('/')
-        return
-      }
-      fetchStats()
-    }
-    checkAuth()
-  }, [router])
-
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     try {
       setLoading(true)
       const response = await fetch('/api/admin/users')
@@ -123,7 +111,7 @@ export default function Dashboard() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
   const updateChart = (users: User[]) => {
     if (!chartRef.current) return
@@ -282,7 +270,7 @@ export default function Dashboard() {
             beginAtZero: true,
             grid: {
               color: 'rgba(147, 51, 234, 0.1)',
-              drawBorder: false
+              display: true
             },
             ticks: {
               color: 'rgb(107, 114, 128)',
@@ -352,7 +340,7 @@ export default function Dashboard() {
         .select('id')
         .eq('status', 'pending')
 
-      setHasNewRequests(requests && requests.length > 0)
+      setHasNewRequests(Boolean(requests?.length))
     } catch (error) {
       console.error('Error checking notifications:', error)
     }
@@ -377,6 +365,18 @@ export default function Dashboard() {
       supabase.removeChannel(channel)
     }
   }, [])
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session || session.user.email !== 'federico.donati.work@gmail.com') {
+        router.push('/')
+        return
+      }
+      fetchStats()
+    }
+    checkAuth()
+  }, [router, fetchStats])
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white dark:from-gray-900 dark:to-black p-8">

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
@@ -34,29 +34,7 @@ export default function Requests() {
   const [loading, setLoading] = useState(true)
   const router = useRouter()
 
-  useEffect(() => {
-    fetchRequests()
-
-    // Sottoscrivi ai cambiamenti delle richieste
-    const channel = supabase
-      .channel('request_changes')
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'request'
-      }, () => {
-        fetchRequests()
-      })
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(channel)
-    }
-  }, [])
-
-  const isRequestUnviewed = (request: Request) => request.viewed_by_user === "false"
-
-  const fetchRequests = async () => {
+  const fetchRequests = useCallback(async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) {
@@ -77,7 +55,29 @@ export default function Requests() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [router])
+
+  useEffect(() => {
+    fetchRequests()
+
+    // Sottoscrivi ai cambiamenti delle richieste
+    const channel = supabase
+      .channel('request_changes')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'request'
+      }, () => {
+        fetchRequests()
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [fetchRequests])
+
+  const isRequestUnviewed = (request: Request) => request.viewed_by_user === "false"
 
   const handleDelete = async (id: number) => {
     try {

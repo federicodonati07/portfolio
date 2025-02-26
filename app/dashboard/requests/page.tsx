@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
@@ -57,9 +57,26 @@ export default function AdminRequests() {
   const [sendingResponse, setSendingResponse] = useState<number | null>(null)
   const [showSuccess, setShowSuccess] = useState<number | null>(null)
 
+  const checkAuth = useCallback(async () => {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) {
+      router.push('/signin')
+      return
+    }
+    
+    if (session.user.email !== 'federico.donati.work@gmail.com') {
+      router.push('/')
+      return
+    }
+
+    fetchRequests()
+  }, [router])
+
   useEffect(() => {
     checkAuth()
+  }, [])
 
+  useEffect(() => {
     // Sottoscrivi ai cambiamenti delle richieste
     const channel = supabase
       .channel('request_changes')
@@ -85,21 +102,6 @@ export default function AdminRequests() {
       setFilter('all')
     }
   }, [requests])
-
-  const checkAuth = async () => {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) {
-      router.push('/signin')
-      return
-    }
-    
-    if (session.user.email !== 'federico.donati.work@gmail.com') {
-      router.push('/')
-      return
-    }
-
-    fetchRequests()
-  }
 
   const fetchRequests = async () => {
     try {
