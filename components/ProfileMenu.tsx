@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
-import { FiGithub, FiMail, FiLogOut, FiPieChart, FiArrowRight, FiUser } from 'react-icons/fi'
+import { FiGithub, FiMail, FiLogOut, FiPieChart, FiUser } from 'react-icons/fi'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Session } from '@supabase/supabase-js'

@@ -75,7 +75,7 @@ export default function AdminRequests() {
 
   useEffect(() => {
     checkAuth()
-  }, [])
+  }, [checkAuth])
 
   useEffect(() => {
     // Sottoscrivi ai cambiamenti delle richieste
