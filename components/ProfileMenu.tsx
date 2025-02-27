@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
-import { FiGithub, FiMail, FiLogOut, FiPieChart } from 'react-icons/fi'
+import { FiGithub, FiMail, FiLogOut, FiPieChart, FiArrowRight, FiUser } from 'react-icons/fi'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Session } from '@supabase/supabase-js'
@@ -120,15 +120,24 @@ export function ProfileMenu() {
     return (
       <Link href="/signin">
         <motion.button
-          whileHover={{ scale: 1.05 }}
+          whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.95 }}
-          className="relative px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 
-                     text-white font-medium hover:shadow-lg hover:shadow-purple-500/30 
-                     transition-all duration-300 group overflow-hidden"
+          className="relative px-2 sm:px-4 py-2 rounded-xl 
+                     bg-gradient-to-r from-purple-600 to-blue-600
+                     text-white font-medium 
+                     hover:shadow-[0_0_15px_rgba(139,92,246,0.3)]
+                     transition-all duration-300 group overflow-hidden
+                     after:absolute after:inset-0
+                     after:bg-gradient-to-r after:from-transparent after:via-white/20 after:to-transparent
+                     after:skew-x-[-20deg] after:-translate-x-full
+                     hover:after:translate-x-[200%]
+                     after:transition-transform after:duration-1000 after:ease-in-out
+                     min-w-[40px] sm:min-w-fit"
         >
-          <span className="relative z-10">Sign In</span>
-          <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-600 
-                         translate-y-[101%] group-hover:translate-y-0 transition-transform duration-500" />
+          <span className="relative z-10 flex items-center gap-2">
+            <FiUser className="w-5 h-5 sm:w-[1.35rem] sm:h-[1.35rem] group-hover:scale-110 transition-transform duration-300" />
+            <span className="hidden sm:block">Sign In</span>
+          </span>
         </motion.button>
       </Link>
     )

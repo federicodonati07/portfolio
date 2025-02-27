@@ -10,6 +10,7 @@ import { GridBackground } from '@/components/GridBackground'
 import { DotsBackground } from '@/components/DotsBackground'
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import { GiCoffeeCup } from "react-icons/gi";
 
 export default function Home() {
   const [activeYear, setActiveYear] = useState<string | null>(null)
@@ -42,29 +43,48 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-gradient-to-b from-gray-50 to-white dark:from-gray-900 dark:to-black transition-colors duration-500">
       {/* Navbar */}
-      <nav className="fixed top-0 left-0 right-0 z-50 m-4">
+      <nav className="fixed top-0 left-0 right-0 z-50 m-2 sm:m-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between 
-                        p-2 rounded-xl 
+                        p-2 sm:p-3 rounded-xl 
                         bg-white/40 dark:bg-gray-800/40 
                         backdrop-blur-md border border-purple-500/30
                         shadow-[0_0_30px_rgba(139,92,246,0.1)]">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-10 h-10 rounded-lg
+          {/* Logo e Nome */}
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-lg
                           bg-gradient-to-br from-purple-600 to-blue-600
-                          text-white font-bold text-lg
+                          text-white font-bold text-base sm:text-lg
                           shadow-[0_0_15px_rgba(139,92,246,0.3)]">
               FD
             </div>
-            <span className="text-xl font-semibold bg-gradient-to-r from-purple-600 to-blue-600 
+            <span className="text-lg sm:text-xl font-semibold bg-gradient-to-r from-purple-600 to-blue-600 
                            dark:from-purple-400 dark:to-blue-400 
                            text-transparent bg-clip-text">
               Federico Donati
             </span>
           </div>
           
-          <div className="flex items-center gap-3">
+          {/* Pulsanti */}
+          <div className="flex items-center gap-2 sm:gap-3">
+            <Link 
+              href={`https://www.buymeacoffee.com/${process.env.NEXT_PUBLIC_BUYMEACOFFEE_USERNAME}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 px-2 sm:px-4 py-2 rounded-xl 
+                         bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-500
+                         hover:shadow-[0_0_15px_rgba(16,185,129,0.3)]
+                         border border-emerald-400/20
+                         transition-all duration-300 group
+                         hover:px-5 sm:hover:px-6
+                         min-w-[40px] sm:min-w-fit"
+            >
+              <GiCoffeeCup className="w-5 h-5 sm:w-[1.35rem] sm:h-[1.35rem] text-white group-hover:scale-110 group-hover:rotate-12 transition-all duration-300" />
+              <span className="text-white font-medium text-sm hidden sm:block">
+                Buy me a coffee
+              </span>
+            </Link>
             <ThemeSwitch />
-            <div className="w-px h-6 bg-gradient-to-b from-purple-500/20 via-blue-500/20 to-purple-500/20" />
+            <div className="w-px h-5 sm:h-6 bg-gradient-to-b from-purple-500/20 via-blue-500/20 to-purple-500/20" />
             <ProfileMenu />
           </div>
         </div>
